@@ -3,6 +3,115 @@ use sdl2::render::Canvas;
 use sdl2::{pixels, rect};
 use sdl2::video::Window;
 
+use std::arch::x86_64::*;
+
+#[derive(Clone)]
+struct ComplexSIMD{
+    real: Vec4d,
+    imag: Vec4d,
+}
+
+impl ComplexSIMD{
+    pub fn new(real: Vec4d, imag: Vec4d) -> Self{
+        Self{
+            real,
+            imag,
+        }
+    }
+}
+
+#[derive(Clone)]
+struct Vec4d{
+    val: __m256d,
+}
+
+impl Vec4d{
+    pub unsafe fn new(val: f64) -> Self{
+        Self{
+            val: _mm256_set1_pd(val),
+        }
+    }
+    pub unsafe fn from(val1: f64, val2: f64, val3: f64, val4: f64) -> Self{
+        Self{
+            val: _mm256_setr_pd(val1, val2, val3, val4),
+        }
+    }
+}
+
+impl std::ops::Add for Vec4d{
+    type Output = Self;
+    fn add(self, other: Self) -> Self::Output{
+        Self{
+            val: unsafe { _mm256_add_pd(self.val, other.val) },
+        }
+    }
+}
+impl std::ops::Mul for Vec4d{
+    type Output = Self;
+    fn mul(self, other: Self) -> Self::Output{
+        Self{
+            val: unsafe { _mm256_mul_pd(self.val, other.val) },
+        }
+    }
+}
+impl std::ops::Sub for Vec4d{
+    type Output = Self;
+    fn sub(self, other: Self) -> Self::Output{
+        Self{
+            val: unsafe { _mm256_sub_pd(self.val, other.val) },
+        }
+    }
+}
+
+#[cfg(target_feature = "avx2")]
+unsafe fn mandelbrot(z: ComplexSIMD, c: ComplexSIMD) -> ComplexSIMD{
+    let nr = z.real.clone() * z.real.clone() - z.imag.clone() * z.imag.clone() + c.real.clone();
+    let ni = z.real.clone() * z.imag.clone() * Vec4d::new(2.0) + c.imag.clone();
+    
+    ComplexSIMD::new(nr, ni)
+}
+
+#[cfg(target_feature = "avx2")]
+unsafe fn escape_check(z: ComplexSIMD) -> __m256d{
+    let cmp = Vec4d::new(4.0).val;
+    _mm256_cmp_pd((z.real.clone() * z.real.clone() + z.imag.clone() * z.imag.clone()).val, 
+                     cmp, 6) == cmp; // todo: fix
+}
+
+#[cfg(target_feature = "avx2")]
+unsafe fn compute_point(c: ComplexSIMD) -> Vec4d{
+    const MAX_ITER: i32 = 255 * 3;
+    let mut z = ComplexSIMD::new(Vec4d::new(0.0), Vec4d::new(0.0));
+    let mut result: [i32; 4] = [MAX_ITER, MAX_ITER, MAX_ITER, MAX_ITER];
+    let mut r = [false, false, false, false];
+    for i in 1..=MAX_ITER {
+        z = mandelbrot(z, c.clone());
+        let iters = escape_check(z.clone());
+        if iters[0] && !r[0] {
+            result[0] = i;
+            r[0] = true;
+        }
+        if iters[1] && !r[1] {
+            result[1] = i;
+            r[1] = true;
+        }
+        if iters[2] && !r[2] {
+            result[2] = i;
+            r[2] = true;
+        }
+        if iters[3] && !r[3] {
+            result[3] = i;
+            r[3] = true;
+        }
+        if r[0] && r[1] && r[2] && r[3] {
+            Vec4d::from(result[0] as f64, result[1] as f64,
+                               result[2] as f64, result[3] as f64)
+        }
+    }
+    Vec4d::from(result[0] as f64, result[1] as f64, result[2] as f64, result[3] as f64)
+}
+
+
 /// calculates the quadratic map for the Mandelbrot set
 fn mandelbrot(z: Complex64, c: Complex64) -> Complex64{
     z * z + c
@@ -39,8 +148,9 @@ fn render_mandelbrot(canvas: &mut Canvas<Window>, x_offset: f64, y_offset: f64, 
     let height_correction = height / 2;
     for i in 0..width{
         for j in 0..height{
-            let iterations = compute_point(Complex64::new(pixel_to_mandelbrot(i, x_offset, zoom, width_correction),
-                                                          pixel_to_mandelbrot(j, y_offset, zoom, height_correction)));
+            let iterations = compute_point(Complex64::new(
+                pixel_to_mandelbrot(i, x_offset, zoom, width_correction),
+                pixel_to_mandelbrot(j, y_offset, zoom, height_correction)));
             let colour = (iterations % 255) as u8;
             canvas.set_draw_color(pixels::Color::RGB(colour, colour, colour));
             canvas.fill_rect(rect::Rect::new(i, j, 1, 1)).expect("Failed to create rectangle");
@@ -63,6 +173,7 @@ fn main() {
         .build()
         .expect("Failed to create canvas");
     let mut events = sdl_context.event_pump().expect("Cannot create event pump");
+    
     let mut zoom = 0.003;
     let mut y_offset = 0.0;
     let mut x_offset = 0.0;
@@ -79,7 +190,8 @@ fn main() {
                 Event::KeyDown{keycode: Some(Keycode::D), .. } => x_offset += zoom * 20.0,
                 Event::KeyDown{keycode: Some(Keycode::Q), .. } => zoom *= 0.5,
                 Event::KeyDown{keycode: Some(Keycode::E), .. } => zoom *= 0.5,
-                Event::KeyDown{keycode: Some(Keycode::Space), .. } => println!("Zoom: {}, x_offset: {}, y_offset: {}", zoom, x_offset, y_offset),
+                Event::KeyDown{keycode: Some(Keycode::Space), .. } => println!("Zoom: {}, x_offset: {}, y_offset: {}", 
+                                                                               zoom, x_offset, y_offset),
                 Event::KeyDown{..} => break 'main,
                 _ => continue,
             }
