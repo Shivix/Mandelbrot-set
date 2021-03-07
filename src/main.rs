@@ -36,6 +36,11 @@ impl Vec4d{
             val: _mm256_setr_pd(val1, val2, val3, val4),
         }
     }
+    pub unsafe fn take(val: __m256d) -> Self{
+        Self{
+            val,
+        }
+    }
 }
 
 impl std::ops::Add for Vec4d{
@@ -67,19 +72,17 @@ impl std::ops::Sub for Vec4d{
 unsafe fn mandelbrot(z: ComplexSIMD, c: ComplexSIMD) -> ComplexSIMD{
     let nr = z.real.clone() * z.real.clone() - z.imag.clone() * z.imag.clone() + c.real.clone();
     let ni = z.real.clone() * z.imag.clone() * Vec4d::new(2.0) + c.imag.clone();
-    
     ComplexSIMD::new(nr, ni)
 }
 
 #[cfg(target_feature = "avx2")]
-unsafe fn escape_check(z: ComplexSIMD) -> __m256d{
-    let cmp = Vec4d::new(4.0).val;
-    _mm256_cmp_pd((z.real.clone() * z.real.clone() + z.imag.clone() * z.imag.clone()).val, 
-                     cmp, 6) == cmp; // todo: fix
+unsafe fn escape_check(z: ComplexSIMD) -> Vec4d{
+    Vec4d::take(_mm256_cmp_pd((z.real.clone() * z.real.clone() + z.imag.clone() * z.imag.clone()).val,
+                  _mm256_set1_pd(4.0), _CMP_GT_OQ))
 }
 
 #[cfg(target_feature = "avx2")]
-unsafe fn compute_point(c: ComplexSIMD) -> Vec4d{
+unsafe fn compute_point(c: ComplexSIMD) -> Vec4d{// TODO: simd check if changed, simd check if higher?
     const MAX_ITER: i32 = 255 * 3;
     let mut z = ComplexSIMD::new(Vec4d::new(0.0), Vec4d::new(0.0));
     let mut result: [i32; 4] = [MAX_ITER, MAX_ITER, MAX_ITER, MAX_ITER];
@@ -87,6 +90,7 @@ unsafe fn compute_point(c: ComplexSIMD) -> Vec4d{
     for i in 1..=MAX_ITER {
         z = mandelbrot(z, c.clone());
         let iters = escape_check(z.clone());
+        simd_extract(iters.clone(), 0);
         if iters[0] && !r[0] {
             result[0] = i;
             r[0] = true;
@@ -117,7 +121,6 @@ fn mandelbrot(z: Complex64, c: Complex64) -> Complex64{
     z * z + c
 }
 
-/// checks if the orbit remains bounded
 fn escape_check(z: Complex64) -> bool{
     (z.re * z.re + z.im * z.im) > 4.0
 }
