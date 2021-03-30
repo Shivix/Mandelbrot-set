@@ -82,17 +82,17 @@ fn render_mandelbrot(canvas: &mut Canvas<Window>, x_offset: f64, y_offset: f64, 
                 if escape_mask.all() {
                     break 'esc;
                 }
-                let a = f64x4::new(if escape_mask.extract(0) {1.0} else {0.0}, // todo: scuffed, change
-                                   if escape_mask.extract(1) {1.0} else {0.0},
-                                   if escape_mask.extract(2) {1.0} else {0.0},
-                                   if escape_mask.extract(3) {1.0} else {0.0});
+                let a = f64x4::new(if escape_mask.extract(0) {0.0} else {1.0}, // todo: scuffed, change
+                                   if escape_mask.extract(1) {0.0} else {1.0},
+                                   if escape_mask.extract(2) {0.0} else {1.0},
+                                   if escape_mask.extract(3) {0.0} else {1.0});
                 num_of_iters += a;
             }
-            let colour = (num_of_iters % 3.0);
+            let colour = (num_of_iters % 255.0);
             for k in 0..4 {
                 canvas.set_draw_color(pixels::Color::RGB(colour.extract(k) as u8, colour.extract(k) as u8, 
                                                          colour.extract(k) as u8));
-                canvas.fill_rect(rect::Rect::new(i, j + k as i32, 1, 1))
+                canvas.fill_rect(rect::Rect::new(j + k as i32, i, 1, 1))
                     .expect("Failed to create rectangle");
             }
         }
