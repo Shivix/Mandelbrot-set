@@ -1,7 +1,7 @@
 #![feature(portable_simd)]
 
-use std::simd::*;
 use image::{Rgb, RgbImage};
+use std::simd::*;
 
 #[derive(Clone, Copy)]
 struct ComplexSIMD {

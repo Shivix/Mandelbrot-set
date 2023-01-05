@@ -7,5 +7,4 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-core_simd = { git = "https://github.com/rust-lang/portable-simd" }
 image = "0.24.5"
