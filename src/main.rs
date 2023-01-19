@@ -29,7 +29,7 @@ fn escape_check(z: ComplexSIMD) -> mask64x4 {
 
 /// Converts the x y coordinates of the pixels to the mandelbrot coordinates
 fn pixel_to_mandelbrot(pixel: f64x4, offset: f64, zoom: f64, zoom_correction: u32) -> f64x4 {
-    (pixel - f64x4::splat(zoom_correction as f64)) * f64x4::splat(zoom + offset)
+    (pixel - f64x4::splat(zoom_correction as f64)) * f64x4::splat(zoom) + f64x4::splat(offset)
 }
 
 /// renders the mandelbrot set to a SDL2 canvas
@@ -74,13 +74,12 @@ fn main() {
     const WIDTH: u32 = 2560;
     const HEIGHT: u32 = 1440;
     let mut image = RgbImage::new(WIDTH, HEIGHT);
-    let zoom = 0.003;
+    let zoom = 0.002;
     let x_offset = 0.0;
     let y_offset = 0.0;
-    // FIXME: offsets are shrinking image
-    //let zoom = 0.000002;
-    //let x_offset = -0.355;
-    //let y_offset = 0.096;
+    //let zoom = 0.00002;
+    //let x_offset = -0.03;
+    //let y_offset = 0.7;
     render_mandelbrot(&mut image, x_offset, y_offset, zoom);
     image.save("mandelbrot.jpg").expect("cannot save image");
 }
